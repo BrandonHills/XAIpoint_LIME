@@ -18,7 +18,7 @@ import math
 def main():
 	# For Testing
 	classifier = AgeClassify()
-	ans = classifier.process_by_boundingbox("/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg", (0,0), (63, 63), perturbation=50)
+	ans = classifier.process_by_boundingbox("/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test6.jpg", (0,0), (63, 63), perturbation=50)
 	print(ans)
 	pickle.dump(ans, open("pickled/ans2.p", "wb"))
 
@@ -55,7 +55,8 @@ class AgeClassify:
 		print("generating explanation...")
 
 		# Generate Explanation from LIME
-		explanation = explainer.explain_instance(resizedImg, self.SingleYearPredictor, top_labels=101, hide_color=0, num_samples=perturbation)
+		explanation = explainer.explain_instance(resizedImg, classifier_fn = self.SingleYearPredictor, top_labels=101, hide_color=0, num_samples=50, segmentation_fn=segmenter)
+
 
 		print("generating model predictions...")
 		# Generate model predictions
@@ -67,7 +68,7 @@ class AgeClassify:
 		# Collect all the masks from each age. Store in a List.
 		maskLst=[]
 		for i in range(101):
-			temp, mask = explanation.get_image_and_mask(i, positive_only=True, num_features=5, hide_rest=False, min_weight=0.005)
+			temp, mask = explanation.get_image_and_mask(i, positive_only=True, num_features=5, hide_rest=False, min_weight=0.01)
 			maskLst.append(mask) 
 
 		print("generating age range estimation of bounding box...")
@@ -84,7 +85,13 @@ class AgeClassify:
 		print("returning answer...")
 		# Returns a tuple of representative Image+Mask and age range of box.
 		# Example: (IMG, (21, 26))
+
+		print("specificAgePrediction", specificAgePrediction)
+		print("rngeVec", np.asarray(rngeVec))
+		print("vector", vector)
+
 		return (label2rgb(maskLst[specificAgePrediction],temp, bg_label = 0), predictionOfBox)
+		
 
 	def bucketize(self, lst, n):
 		newBuckets = []
