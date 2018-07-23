@@ -6,6 +6,7 @@ import argparse
 from contextlib import contextmanager
 from wide_resnet import WideResNet
 from keras.utils.data_utils import get_file
+from scipy.misc import imresize
 import skimage
 from skimage.color import label2rgb
 from skimage.segmentation import mark_boundaries
@@ -14,14 +15,22 @@ from lime import lime_image
 from lime.wrappers.scikit_image import SegmentationAlgorithm
 import pickle
 import math
-from scipy.misc import imresize
+
 
 def main():
 	# For Testing
 	classifier = AgeClassify()
-	ans = classifier.process_by_boundingbox("/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg", (0,0), (63, 63), perturbation=50)
+	filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg"
+	ans = classifier.process(filename, (0,0), (63, 63), perturbation=50)
 	print(ans)
-	pickle.dump(ans, open("pickled/ans2.p", "wb"))
+	pickle.dump(ans, open("pickled/ans3.p", "wb"))
+
+	maskLst = ans[0]
+	ans2 = classifier.predict_boundingbox(maskLst, (0,0), (63,63))
+	pickle.dump(ans2, open("pickled/ans4.p", "wb"))
+
+	ans3 = classifier.get_overlay(filename, maskLst, 22)
+	pickle.dump(ans3, open("pickled/ans5.p", "wb"))
 
 
 class AgeClassify:
@@ -40,9 +49,8 @@ class AgeClassify:
 		self.model.load_weights(weight_file)
 
 
-	def process_by_boundingbox(self, file_path, c1, c2, bucketSize=10, perturbation=50, rnge=5):
-		""" Given an image and two coordinates of a bounding box, returns a vector
-			The element at index i of the vector will be the occurances of (i to i+5)"""
+	def process(self, file_path, c1=(0,0), c2=(63,63), perturbation=50, rnge=5):
+		# Should take file_path and return maskLst, age prediction, and an overlay.
 
 		# Get Downsized Image
 		origImg = self.get_original_image(file_path)
@@ -71,7 +79,7 @@ class AgeClassify:
 		maskLst=[]
 		for i in range(101):
 			temp, mask = explanation.get_image_and_mask(i, positive_only=True, num_features=5, hide_rest=False, min_weight=0.01)
-			maskLst.append(mask) 
+			maskLst.append(mask)
 
 		print("generating age range estimation of bounding box...")
 		# Generate Age Estimation of the range
@@ -106,8 +114,42 @@ class AgeClassify:
 		grayImg = cv2.cvtColor(origImg, cv2.COLOR_RGB2GRAY)
 		overlay = label2rgb(reMask,grayImg, bg_label = 0)
 
+		return (maskLst, overlay, predictionOfBox)
 
-		return (overlay, predictionOfBox)
+	def predict_boundingbox(self, maskLst, c1, c2, rnge=5):
+
+		print("generating age range estimation of bounding box...")
+		# Generate Age Estimation of the range
+		vector=self.AreaAgeEstimatorVector(maskLst, c1, c2)
+		rngeVec=self.AreaAgeEstimatorRange(vector, rnge=rnge)
+
+		# Give the most representative range
+		rangeMode = [i for i, j in enumerate(rngeVec) if j == max(rngeVec)][0]
+		
+		# Generate Tuple representing range
+		predictionOfBox = (rangeMode, rangeMode+rnge)
+
+		return predictionOfBox
+
+	def get_overlay(self, file_path, maskLst, overlayIndex):
+
+		# Get Image
+		origImg = self.get_original_image(file_path)
+
+		# New Addition:  Overlaying Mask onto originalSized Image.
+		reMask = imresize(maskLst[overlayIndex], origImg.shape)
+
+		# Make reMask boolean 2D array
+		for i in range(len(reMask)):
+			for j in range(len(reMask[0])):
+				if reMask[i][j] != 0:
+					reMask[i][j] = 1
+
+		grayImg = cv2.cvtColor(origImg, cv2.COLOR_RGB2GRAY)
+		overlay = label2rgb(reMask,grayImg, bg_label = 0)
+
+
+		return overlay
 		
 
 	def bucketize(self, lst, n):
@@ -159,38 +201,6 @@ class AgeClassify:
 		return cv2.resize(orig, (img_size, img_size), interpolation=cv2.INTER_AREA)
 
 
-
-	def process(self, file_path, bucketSize=10, perturbation=1000):
-
-		# Get Downsized Image
-		resizedImg = self.get_downsized_image(file_path)
-		print("downsized image...")
-
-		# Instantiate the Explainer and Segmenter
-		explainer = lime_image.LimeImageExplainer(verbose = False)
-		segmenter = SegmentationAlgorithm('slic', n_segments=100, compactness=1, sigma=1)
-
-		print("generating explanation...")
-		# Generate Explanation from LIME
-		explanation = explainer.explain_instance(resizedImg, self.TenYearRangePredictor, top_labels=5, hide_color=0, num_samples=perturbation)
-
-		print("generating model predictions")
-		# Generate model predictions
-		preds=self.TenYearRangePredictor(np.asarray([resizedImg]))[0]
-
-
-		print("generating masks")
-		# now show masks for each class
-		imageMasks=[]
-		ageRanges=[]
-
-		for i in explanation.top_labels:
-		    temp, mask = explanation.get_image_and_mask(i, positive_only=True, num_features=5, hide_rest=False, min_weight=0.01)
-		    imageMasks.append(label2rgb(mask,temp, bg_label = 0))
-		    ageRanges.append("(" + str(i*bucketSize) + "-" + str((i+1)*bucketSize) + ")")
-
-
-		return (imageMasks, ageRanges)
 
 		# Create a function that will count the number of pixels in a bounding box for a certain mask
 	def countPixels(self, mask, c1,c2):
