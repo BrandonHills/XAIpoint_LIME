@@ -14,11 +14,12 @@ from lime import lime_image
 from lime.wrappers.scikit_image import SegmentationAlgorithm
 import pickle
 import math
+from scipy.misc import imresize
 
 def main():
 	# For Testing
 	classifier = AgeClassify()
-	ans = classifier.process_by_boundingbox("/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test6.jpg", (0,0), (63, 63), perturbation=50)
+	ans = classifier.process_by_boundingbox("/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg", (0,0), (63, 63), perturbation=50)
 	print(ans)
 	pickle.dump(ans, open("pickled/ans2.p", "wb"))
 
@@ -44,6 +45,7 @@ class AgeClassify:
 			The element at index i of the vector will be the occurances of (i to i+5)"""
 
 		# Get Downsized Image
+		origImg = self.get_original_image(file_path)
 		resizedImg = self.get_downsized_image(file_path)
 
 		print("downsized image...")
@@ -90,7 +92,22 @@ class AgeClassify:
 		print("rngeVec", np.asarray(rngeVec))
 		print("vector", vector)
 
-		return (label2rgb(maskLst[specificAgePrediction],temp, bg_label = 0), predictionOfBox)
+
+		# New Addition:  Overlaying Mask onto originalSized Image.
+		origDim = origImg.shape
+		reMask = imresize(maskLst[specificAgePrediction], origDim)
+
+		# Make Mask boolean 2D array
+		for i in range(len(reMask)):
+			for j in range(len(reMask[0])):
+				if reMask[i][j] != 0:
+					reMask[i][j] = 1
+
+		grayImg = cv2.cvtColor(origImg, cv2.COLOR_RGB2GRAY)
+		overlay = label2rgb(reMask,grayImg, bg_label = 0)
+
+
+		return (overlay, predictionOfBox)
 		
 
 	def bucketize(self, lst, n):
