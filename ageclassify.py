@@ -222,7 +222,9 @@ class AgeClassify:
 
 		facialFeatures = self.process_facial_feature(file_path, maskLst, specificAgePrediction)
 
-		return (maskLst, overlay, specificAgePrediction, facialFeatures)
+		laymans = self.laymans_explanation(facialFeatures, specificAgePrediction)
+
+		return (maskLst, overlay, specificAgePrediction, laymans)
 
 	def predict_boundingbox(self, maskLst, c1, c2, age):
 		# Predict the age of the image based on the bounding box.
@@ -258,7 +260,7 @@ class AgeClassify:
 		# cv2.imwrite('store/img1.jpg',img)
 
 		imglocal = (255 * img.copy()).astype(np.uint8)
-		
+
 
 		# Scale the coords
 		newC1 = ((int(c1[0]/63.0 * img.shape[0])), int(c1[1]/63.0 * img.shape[1]))
