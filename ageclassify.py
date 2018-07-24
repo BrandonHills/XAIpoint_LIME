@@ -67,13 +67,29 @@ class AgeClassify:
 		self.model.load_weights(weight_file)
 
 
-	# def export_image_list(self, imageLst):
-	# 	for i in range(len(imageLst)):
-	# 		img = imageLst[i]
-	# 		img = img*255
-	# 		print("SHAPED:", img.shape)
-	# 		image = Image.fromarray(np.asarray(img))
-	# 		image.save("masks/mask" + str(i)) 
+	# def laymans_explanation(self, facialDict, predictedAge):
+	# 	# Separate into older and younger
+	# 	younger = []
+	# 	older = []
+	# 	for feature in facialDict.keys():
+	# 		if facialDict[feature] > predictedAge:
+	# 			older.append(feature)
+	# 		elif facialDict[feature] > predictedAge:
+	# 			younger.append(feature)
+
+	# 	explanation = "We have found that your "
+		
+	# 	if len(younger) > 0:
+	# 		if len(younger) > 1:
+	# 			for feature in younger[:-1]:
+	# 				explanation += feature + ", "
+	# 			explanation += "and your " + younger[-1]
+	# 		else:
+
+
+
+
+
 
 	def process(self, file_path, perturbation=50, rnge=5):
 		# Should take file_path and return maskLst, age prediction, and an overlay.
@@ -176,9 +192,14 @@ class AgeClassify:
 
 		return avg
 
-	def draw_bounding_box(self, img, c1, c2, colour=(109,207,246), thicc=2): 
+	def draw_bounding_box(self, img, c1, c2, colour=(246,207,109), thicc=2): 
 
-		return cv2.rectangle(img, c1, c2, colour, thicc)
+		# Scale the coords
+		newC1 = ((int(c1[0] / 64) * img.shape[0]), int(c1[1]/64 * img.shape[1]))
+
+		newC2 = ((int(c2[0] / 64) * img.shape[0]), int(c2[1]/64 * img.shape[1]))
+
+		return cv2.rectangle(img, newC1, newC2, colour, thicc)
 
 
 	def get_overlay(self, file_path, maskLst, agePrediction):
