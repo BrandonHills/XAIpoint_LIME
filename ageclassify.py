@@ -22,7 +22,7 @@ import imutils
 def main():
 	# For Testing
 	
-	if 1 == 1:
+	if 1 == 0:
 		classifier = AgeClassify()
 		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg"
 		ans = classifier.process(filename, perturbation=50)
@@ -32,7 +32,7 @@ def main():
 		ans2 = classifier.process_facial_feature(filename, maskLst)
 		print(ans2)
 
-	if 1 == 0:
+	if 1 == 1:
 		classifier = AgeClassify()
 		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg"
 		ans = classifier.process(filename, perturbation=50)
@@ -120,7 +120,7 @@ class AgeClassify:
 		# New Addition:  Overlaying Mask onto originalSized Image.
 		origDim = origImg.shape
 
-		mask = self.composite_masks(maskLst[predictionOfBox[0]:(predictionOfBox[1])], perc=.5)
+		mask = maskLst[specificAgePrediction]
 
 		reMask = imresize(mask, origDim)
 
@@ -133,7 +133,7 @@ class AgeClassify:
 		grayImg = cv2.cvtColor(origImg, cv2.COLOR_RGB2GRAY)
 		overlay = label2rgb(reMask,grayImg, bg_label = 0)
 
-		return (maskLst, overlay, predictionOfBox)
+		return (maskLst, overlay, specificAgePrediction)
 
 	def predict_boundingbox(self, maskLst, c1, c2):
 		# Predict the age of the image based on the bounding box.
@@ -157,13 +157,13 @@ class AgeClassify:
 
 		return avg
 
-	def get_overlay(self, file_path, maskLst, overlayTuple):
+	def get_overlay(self, file_path, maskLst, specificAgePrediction):
 
 		# Get Image
 		origImg = self.get_original_image(file_path)
 
 		# Getting the composite mask
-		mask = self.composite_masks(maskLst[overlayTuple[0]:(overlayTuple[1])], perc=.5)
+		mask = maskLst[specificAgePrediction]
 
 		# New Addition:  Overlaying Mask onto originalSized Image.
 		reMask = imresize(mask, origImg.shape)
