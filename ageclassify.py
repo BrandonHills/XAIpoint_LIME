@@ -15,21 +15,36 @@ from lime import lime_image
 from lime.wrappers.scikit_image import SegmentationAlgorithm
 import pickle
 import math
+from collections import OrderedDict
+import imtools
+import imutils
 
 def main():
 	# For Testing
-	classifier = AgeClassify()
-	filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg"
-	ans = classifier.process(filename, perturbation=50)
-	print(ans)
-	pickle.dump(ans, open("pickled/ans3.p", "wb"))
+	
+	if 1 == 1:
+		classifier = AgeClassify()
+		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg"
+		ans = classifier.process(filename, perturbation=50)
+		maskLst=ans[0]
 
-	maskLst = ans[0]
-	ans2 = classifier.predict_boundingbox(maskLst, (0,0), (63,63))
-	pickle.dump(ans2, open("pickled/ans4.p", "wb"))
+		print("SHAPE OF MASK LIST", np.asarray(maskLst).shape)
+		ans2 = classifier.process_facial_feature(filename, maskLst)
+		print(ans2)
 
-	ans3 = classifier.get_overlay(filename, maskLst, (22,26))
-	pickle.dump(ans3, open("pickled/ans5.p", "wb"))
+	if 1 == 0:
+		classifier = AgeClassify()
+		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg"
+		ans = classifier.process(filename, perturbation=50)
+		print(ans)
+		pickle.dump(ans, open("pickled/ans3.p", "wb"))
+
+		maskLst = ans[0]
+		ans2 = classifier.predict_boundingbox(maskLst, (0,0), (63,63))
+		pickle.dump(ans2, open("pickled/ans4.p", "wb"))
+
+		ans3 = classifier.get_overlay(filename, maskLst, (22,26))
+		pickle.dump(ans3, open("pickled/ans5.p", "wb"))
 
 
 class AgeClassify:
@@ -46,6 +61,8 @@ class AgeClassify:
 		margin=0.4
 		self.model = WideResNet(img_size, depth=depth, k=width)()
 		self.model.load_weights(weight_file)
+
+		
 
 
 	def process(self, file_path, perturbation=50, rnge=5):
@@ -118,21 +135,27 @@ class AgeClassify:
 
 		return (maskLst, overlay, predictionOfBox)
 
-	def predict_boundingbox(self, maskLst, c1, c2, rnge=5):
+	def predict_boundingbox(self, maskLst, c1, c2):
 		# Predict the age of the image based on the bounding box.
 
 		print("generating age range estimation of bounding box...")
 		# Generate Age Estimation of the range
 		vector=self.AreaAgeEstimatorVector(maskLst, c1, c2)
-		rngeVec=self.AreaAgeEstimatorRange(vector, rnge=rnge)
-
-		# Give the most representative range
-		rangeMode = [i for i, j in enumerate(rngeVec) if j == max(rngeVec)][0]
 		
 		# Generate Tuple representing range
-		predictionOfBox = (rangeMode, rangeMode+rnge)
+		predictionOfBox = self.weighted_average_of_vector(vector)
 
 		return predictionOfBox
+
+	def weighted_average_of_vector(self, vector):
+		
+		denominator = sum(vector)
+
+		for i in range(len(vector)):
+			vector[i] = vector[i] * i
+		avg = int(sum(vector) / denominator)
+
+		return avg
 
 	def get_overlay(self, file_path, maskLst, overlayTuple):
 
@@ -247,7 +270,87 @@ class AgeClassify:
 			rangeVector.append(sum(vector[i:i+rnge]))
 		return rangeVector
 
-	
+	def shape_to_numpy_array(self, shape, dtype="int"):
+		# initialize the list of (x, y)-coordinates
+		coordinates = np.zeros((68, 2), dtype=dtype)
+
+		# loop over the 68 facial landmarks and convert them
+		# to a 2-tuple of (x, y)-coordinates
+		for i in range(0, 68):
+		    coordinates[i] = (shape.part(i).x, shape.part(i).y)
+
+		# return the list of (x, y)-coordinates
+		return coordinates
+
+	def bounding_box_for_points(self, ptLst):
+		x_coor, y_coor = [], []
+		for i in range(len(ptLst)):
+			x_coor.append(ptLst[i][0])
+			y_coor.append(ptLst[i][1])
+		c1 = (min(x_coor), min(y_coor))
+		c2 = (max(x_coor), max(y_coor))
+		return (c1, c2)
+
+	def get_facial_landmarks(self, file_path):
+		## Return the shape 
+		# initialize dlib's face detector (HOG-based) and then create
+		# the facial landmark predictor
+		detector = dlib.get_frontal_face_detector()
+		predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
+
+		# load the input image, resize it, and convert it to grayscale
+		image = cv2.imread(file_path)
+		image = imutils.resize(image, width=64)
+		gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+		# detect faces in the grayscale image
+
+		shape = predictor(gray, detector(gray, 1)[0])
+		shape = self.shape_to_numpy_array(shape)
+
+		FACIAL_LANDMARKS_BBox = OrderedDict([
+			("mouth", self.bounding_box_for_points(shape[48:68])),
+			("right_eye", self.bounding_box_for_points(shape[36:42])),
+			("left_eye", self.bounding_box_for_points(shape[42:48])),
+			("nose", self.bounding_box_for_points(shape[27:35])),
+			("right_cheek", self.bounding_box_for_points([shape[2], shape[7]])),
+			("left_cheek", self.bounding_box_for_points([shape[11], shape[16]]))])		
+
+		return FACIAL_LANDMARKS_BBox
+
+	def resize_maskLst(self, maskLst, dims):
+		newLst = []
+		for mask in maskLst:
+			# New Addition:  Overlaying Mask onto originalSized Image.
+			reMask = imresize(mask, dims)
+
+			# Make reMask boolean 2D array
+			for i in range(len(reMask)):
+				for j in range(len(reMask[0])):
+					if reMask[i][j] != 0:
+						reMask[i][j] = 1
+
+			newLst.append(reMask)
+		return newLst
+
+	def process_facial_feature(self, file_path, maskLst):
+		# For each facial feature, tally up the votes for the feature region
+		# and average them out to determine the region's age estimation.
+		
+		# Get original dims
+		dims = self.get_original_image(file_path).shape
+
+		# print("resizing masks")
+		# Resize all masks
+		# maskLst = self.resize_maskLst(maskLst, dims)
+
+		est_dict = dict()
+		FACIAL_LANDMARKS_BBox = self.get_facial_landmarks(file_path)
+		for landmark in FACIAL_LANDMARKS_BBox.keys():
+			c1, c2 = FACIAL_LANDMARKS_BBox[landmark]
+			est_dict[landmark] = self.predict_boundingbox(maskLst, c1, c2)
+		return est_dict
+
 
 if __name__ == "__main__":
 	main()
