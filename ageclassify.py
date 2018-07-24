@@ -16,7 +16,6 @@ from lime.wrappers.scikit_image import SegmentationAlgorithm
 import pickle
 import math
 from collections import OrderedDict
-import imtools
 import imutils
 
 def main():
