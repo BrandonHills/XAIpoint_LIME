@@ -90,9 +90,7 @@ class AgeClassify:
 
 	def laymans_explanation(self, facialDict, predictedAge):
 		# Separate into older and younger
-		predictedAge = 20
-		facialDict = {'mouth': 23, 'right cheek': 18, 'left cheek': 18, 'right eye': 23, 'left eye': 23}
-
+		
 		younger = []
 		older = []
 		for feature in facialDict.keys():
