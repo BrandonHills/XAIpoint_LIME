@@ -35,7 +35,7 @@ def main():
 	if 1 == 1:
 		classifier = AgeClassify()
 		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg"
-		ans = classifier.process(filename, perturbation=500)
+		ans = classifier.process(filename, perturbation=50)
 		print(ans)
 		pickle.dump(ans, open("pickled/ans3.p", "wb"))
 
@@ -45,6 +45,10 @@ def main():
 
 		ans3 = classifier.get_overlay(filename, maskLst, 22)
 		pickle.dump(ans3, open("pickled/ans5.p", "wb"))
+
+		# print("SHAPEC:", np.asarray(maskLst).shape)
+
+		# classifier.export_image_list(maskLst)
 
 
 class AgeClassify:
@@ -62,11 +66,14 @@ class AgeClassify:
 		self.model = WideResNet(img_size, depth=depth, k=width)()
 		self.model.load_weights(weight_file)
 
-		
-	def export_image_list(self, imageLst):
-		for i in range(len(imageLst)):
-			image = Image.fromarray(imageLst[i])
-			image.save("masks/mask" + str(i)) 
+
+	# def export_image_list(self, imageLst):
+	# 	for i in range(len(imageLst)):
+	# 		img = imageLst[i]
+	# 		img = img*255
+	# 		print("SHAPED:", img.shape)
+	# 		image = Image.fromarray(np.asarray(img))
+	# 		image.save("masks/mask" + str(i)) 
 
 	def process(self, file_path, perturbation=50, rnge=5):
 		# Should take file_path and return maskLst, age prediction, and an overlay.
@@ -136,7 +143,9 @@ class AgeClassify:
 		grayImg = cv2.cvtColor(origImg, cv2.COLOR_RGB2GRAY)
 		overlay = label2rgb(reMask,grayImg, bg_label = 0)
 
-		return (maskLst, overlay, specificAgePrediction)
+		facialFeatures = self.process_facial_feature(file_path, maskLst)
+
+		return (maskLst, overlay, specificAgePrediction, facialFeatures)
 
 	def predict_boundingbox(self, maskLst, c1, c2):
 		# Predict the age of the image based on the bounding box.
@@ -161,6 +170,11 @@ class AgeClassify:
 		avg = int(sum(vector) / denominator)
 
 		return avg
+
+	def draw_bounding_box(self, img, c1, c2, colour=(109,207,246), thicc=2): 
+
+		return cv2.rectangle(img, c1, c2, colour, thicc)
+
 
 	def get_overlay(self, file_path, maskLst, agePrediction):
 
@@ -307,6 +321,8 @@ class AgeClassify:
 		detector = dlib.get_frontal_face_detector()
 		predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
+		print("FILE:", file_path)
+
 		# load the input image, resize it, and convert it to grayscale
 		image = cv2.imread(file_path)
 		image = imutils.resize(image, width=64)
@@ -345,13 +361,6 @@ class AgeClassify:
 	def process_facial_feature(self, file_path, maskLst):
 		# For each facial feature, tally up the votes for the feature region
 		# and average them out to determine the region's age estimation.
-		
-		# Get original dims
-		dims = self.get_original_image(file_path).shape
-
-		# print("resizing masks")
-		# Resize all masks
-		# maskLst = self.resize_maskLst(maskLst, dims)
 
 		est_dict = dict()
 		FACIAL_LANDMARKS_BBox = self.get_facial_landmarks(file_path)
