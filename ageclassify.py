@@ -24,7 +24,7 @@ def main():
 	
 	if 1 == 0:
 		classifier = AgeClassify()
-		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg"
+		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test4.jpg"
 		ans = classifier.process(filename, perturbation=50)
 		maskLst=ans[0]
 
@@ -34,13 +34,13 @@ def main():
 
 	if 1 == 1:
 		classifier = AgeClassify()
-		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg"
+		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test1.jpg"
 		ans = classifier.process(filename, perturbation=50)
 		print(ans)
 		pickle.dump(ans, open("pickled/ans3.p", "wb"))
 
 		maskLst = ans[0]
-		ans2 = classifier.predict_boundingbox(maskLst, (0,0), (63,63))
+		ans2 = classifier.predict_boundingbox(maskLst, (0,0), (63,63), ans[2])
 		pickle.dump(ans2, open("pickled/ans4.p", "wb"))
 
 		ans3 = classifier.get_overlay(filename, maskLst, 22)
@@ -143,11 +143,11 @@ class AgeClassify:
 		grayImg = cv2.cvtColor(origImg, cv2.COLOR_RGB2GRAY)
 		overlay = label2rgb(reMask,grayImg, bg_label = 0)
 
-		facialFeatures = self.process_facial_feature(file_path, maskLst)
+		facialFeatures = self.process_facial_feature(file_path, maskLst, specificAgePrediction)
 
 		return (maskLst, overlay, specificAgePrediction, facialFeatures)
 
-	def predict_boundingbox(self, maskLst, c1, c2):
+	def predict_boundingbox(self, maskLst, c1, c2, age):
 		# Predict the age of the image based on the bounding box.
 
 		print("generating age range estimation of bounding box...")
@@ -157,17 +157,22 @@ class AgeClassify:
 		print(vector)
 		
 		# Generate Tuple representing range
-		predictionOfBox = self.weighted_average_of_vector(vector)
+		predictionOfBox = self.weighted_average_of_vector(vector, age)
 
 		return predictionOfBox
 
-	def weighted_average_of_vector(self, vector):
+	def weighted_average_of_vector(self, vector, age):
 		
 		denominator = sum(vector)
 
 		for i in range(len(vector)):
 			vector[i] = vector[i] * i
-		avg = int(sum(vector) / denominator)
+		
+
+		if denominator == 0:
+			avg = age
+		else:
+			avg = int(sum(vector) / denominator)
 
 		return avg
 
@@ -339,7 +344,7 @@ class AgeClassify:
 			("left_eye", self.bounding_box_for_points(shape[42:48])),
 			("nose", self.bounding_box_for_points(shape[27:35])),
 			("right_cheek", self.bounding_box_for_points([shape[2], shape[7]])),
-			("left_cheek", self.bounding_box_for_points([shape[11], shape[16]]))])		
+			("left_cheek", self.bounding_box_for_points([shape[11], shape[16]]))])	
 
 		return FACIAL_LANDMARKS_BBox
 
@@ -358,7 +363,7 @@ class AgeClassify:
 			newLst.append(reMask)
 		return newLst
 
-	def process_facial_feature(self, file_path, maskLst):
+	def process_facial_feature(self, file_path, maskLst, age):
 		# For each facial feature, tally up the votes for the feature region
 		# and average them out to determine the region's age estimation.
 
@@ -366,7 +371,7 @@ class AgeClassify:
 		FACIAL_LANDMARKS_BBox = self.get_facial_landmarks(file_path)
 		for landmark in FACIAL_LANDMARKS_BBox.keys():
 			c1, c2 = FACIAL_LANDMARKS_BBox[landmark]
-			est_dict[landmark] = self.predict_boundingbox(maskLst, c1, c2)
+			est_dict[landmark] = self.predict_boundingbox(maskLst, c1, c2, age)
 		return est_dict
 
 
