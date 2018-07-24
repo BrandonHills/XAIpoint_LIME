@@ -1,6 +1,7 @@
 import os
 import cv2
 import dlib
+import sys
 import numpy as np
 import argparse
 from contextlib import contextmanager
@@ -24,7 +25,7 @@ def main():
 	
 	if 1 == 0:
 		classifier = AgeClassify()
-		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test4.jpg"
+		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg"
 		ans = classifier.process(filename, perturbation=50)
 		maskLst=ans[0]
 
@@ -34,7 +35,7 @@ def main():
 
 	if 1 == 1:
 		classifier = AgeClassify()
-		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test1.jpg"
+		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg"
 		ans = classifier.process(filename, perturbation=50)
 		print(ans)
 		pickle.dump(ans, open("pickled/ans3.p", "wb"))
@@ -46,12 +47,27 @@ def main():
 		ans3 = classifier.get_overlay(filename, maskLst, 22)
 		pickle.dump(ans3, open("pickled/ans5.p", "wb"))
 
-		pic = classifier.draw_bounding_box(ans[1], (30,30), (50,50))
+		img = classifier.get_original_image(filename)
+
+		pic = classifier.draw_bounding_box(img, (30,30), (50,50))
+
+		print(classifier.laymans_explanation(ans[3], ans[2]))
+
+		pickle.dump((ans[3], ans[2]), open("pickled/input2.p", "wb"))
 
 
 		# print("SHAPEC:", np.asarray(maskLst).shape)
 
 		# classifier.export_image_list(maskLst)
+	if 1 == 0:
+		input = pickle.load(open("pickled/input1.p", "rb"))
+
+		classifier = AgeClassify()
+
+
+		print(classifier.laymans_explanation(input[0], input[1]))
+
+
 
 
 class AgeClassify:
@@ -70,35 +86,70 @@ class AgeClassify:
 		self.model.load_weights(weight_file)
 
 
-	# def laymans_explanation(self, facialDict, predictedAge):
-	# 	# Separate into older and younger
-	# 	younger = []
-	# 	older = []
-	# 	for feature in facialDict.keys():
-	# 		if facialDict[feature] > predictedAge:
-	# 			older.append(feature)
-	# 		elif facialDict[feature] > predictedAge:
-	# 			younger.append(feature)
+	def laymans_explanation(self, facialDict, predictedAge):
+		# Separate into older and younger
+		younger = []
+		older = []
+		for feature in facialDict.keys():
+			if facialDict[feature] - 2 > predictedAge:
+				older.append(feature)
+			elif facialDict[feature] + 2 < predictedAge:
+				younger.append(feature)
 
-	# 	# Generate the explanation
-	# 	explanation = "We have found that your "
+		# Removing redundancies
+		if "right cheek" in younger and "left cheek" in younger:
+			younger.remove("right cheek")
+			younger.remove("left cheek")
+			younger.append("cheeks")
+
+		if "right cheek" in older and "left cheek" in older:
+			older.remove("right cheek")
+			older.remove("left cheek")
+			older.append("cheeks")
+
+		if "right eye" in younger and "left eye" in younger:
+			younger.remove("right eye")
+			younger.remove("left eye")
+			younger.append("eyes")
+
+		if "right eye" in older and "left eye" in older:
+			older.remove("right eye")
+			older.remove("left eye")
+			older.append("eyes")
+
+
+
+
+		print("FACIAL DICT:", facialDict)
+		print("YOUNGER:", younger)
+		# Generate the explanation
+		explanation = "We have found that your "
 		
-	# 	if len(younger) > 0:
-	# 		if len(younger) > 1:
-	# 			for feature in younger[:-1]:
-	# 				explanation += feature + ", "
-	# 			explanation += "and your " + younger[-1]
-	# 		explanation += "make you look younger "
-			
-	# 		if len(older) > 0:
-	# 			explanation += "and your "
+		if len(younger) > 0:
+			if len(younger) > 1:
+				for feature in younger[:-1]:
+					explanation += feature + ", "
+				explanation += "and " + younger[-1] + " "
+			else:
+				explanation += younger[-1] + " "
+			explanation += "make you look younger than your predicted age "
 
-	# 	if len(older)
+			if len(older) > 0:
+				explanation += "and your "
 
+		if len(older) > 0:
+			if len(older) > 1:
+				for feature in older[:-1]:
+					explanation += feature + ", "
+				explanation += "and " + older[-1] + " "
 
+			else:
+				explanation += older[-1] + " "
+			explanation += "make you look older than your predicted age "
 
+		explanation = explanation[:-1] + "."
 
-
+		return explanation
 
 
 	def process(self, file_path, perturbation=50, rnge=5):
@@ -203,14 +254,23 @@ class AgeClassify:
 		return avg
 
 	def draw_bounding_box(self, img, c1, c2, colour=(246,207,109), thicc=2): 
+		# cv2.imwrite('store/img1.png',img)
+		# cv2.imwrite('store/img1.jpg',img)
+
+		imglocal = (255 * img.copy()).astype(np.uint8)
+		
 
 		# Scale the coords
-		newC1 = ((int(c1[0] / 64 * img.shape[0])), int(c1[1]/64 * img.shape[1]))
+		newC1 = ((int(c1[0]/63.0 * img.shape[0])), int(c1[1]/63.0 * img.shape[1]))
 
-		newC2 = ((int(c2[0] / 64 * img.shape[0])), int(c2[1]/64 * img.shape[1]))
+		newC2 = ((int(c2[0]/63.0 * img.shape[0])), int(c2[1]/63.0 * img.shape[1]))
 
-		return cv2.rectangle(img, newC1, newC2, colour, thicc)
+		cv2.rectangle(imglocal, newC1, newC2, colour, thicc)
 
+		# cv2.imwrite('store/img2xx.png',cv2.rectangle(img, newC1, newC2, colour, thicc))
+		# cv2.imwrite('store/img2.jpg',img)
+
+		return imglocal
 
 	def get_overlay(self, file_path, maskLst, agePrediction):
 
@@ -371,11 +431,11 @@ class AgeClassify:
 
 		FACIAL_LANDMARKS_BBox = OrderedDict([
 			("mouth", self.bounding_box_for_points(shape[48:68])),
-			("right_eye", self.bounding_box_for_points(shape[36:42])),
-			("left_eye", self.bounding_box_for_points(shape[42:48])),
+			("right eye", self.bounding_box_for_points(shape[36:42])),
+			("left eye", self.bounding_box_for_points(shape[42:48])),
 			("nose", self.bounding_box_for_points(shape[27:35])),
-			("right_cheek", self.bounding_box_for_points([shape[2], shape[7]])),
-			("left_cheek", self.bounding_box_for_points([shape[11], shape[16]]))])	
+			("right cheek", self.bounding_box_for_points([shape[2], shape[7]])),
+			("left cheek", self.bounding_box_for_points([shape[11], shape[16]]))])	
 
 		return FACIAL_LANDMARKS_BBox
 
