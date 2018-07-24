@@ -3,13 +3,13 @@ import cv2
 import dlib
 import sys
 import numpy as np
-# import argparse
-# from contextlib import contextmanager
-# from wide_resnet import WideResNet
-# from keras.utils.data_utils import get_file
-# from scipy.misc import imresize
-# import skimage
-# from skimage.color import label2rgb
+import argparse
+from contextlib import contextmanager
+from wide_resnet import WideResNet
+from keras.utils.data_utils import get_file
+from scipy.misc import imresize
+import skimage
+from skimage.color import label2rgb
 from skimage.segmentation import mark_boundaries
 import lime
 from PIL import Image
@@ -78,18 +78,21 @@ class AgeClassify:
 	## import libraries and neural net weights
 		pretrained_model = "https://github.com/yu4u/age-gender-estimation/releases/download/v0.5/weights.18-4.06.hdf5"
 		modhash = '89f56a39a78454e96379348bddd78c0d'
-		# weight_file = get_file("weights.18-4.06.hdf5", pretrained_model, cache_subdir="pretrained_models", file_hash=modhash)
+		weight_file = get_file("weights.18-4.06.hdf5", pretrained_model, cache_subdir="pretrained_models", file_hash=modhash)
 
-		# img_size = 64
-		# depth=16
-		# width=8
-		# margin=0.4
-		# self.model = WideResNet(img_size, depth=depth, k=width)()
-		# self.model.load_weights(weight_file)
+		img_size = 64
+		depth=16
+		width=8
+		margin=0.4
+		self.model = WideResNet(img_size, depth=depth, k=width)()
+		self.model.load_weights(weight_file)
 
 
 	def laymans_explanation(self, facialDict, predictedAge):
 		# Separate into older and younger
+		predictedAge = 20
+		facialDict = {'mouth': 23, 'right cheek': 18, 'left cheek': 18, 'right eye': 23, 'left eye': 23}
+
 		younger = []
 		older = []
 		for feature in facialDict.keys():
@@ -122,9 +125,6 @@ class AgeClassify:
 			older.remove("left eye")
 			older.append("eyes")
 
-
-
-
 		print("FACIAL DICT:", facialDict)
 		print("YOUNGER:", younger)
 		# Generate the explanation
@@ -136,7 +136,8 @@ class AgeClassify:
 				if len(younger) > 1:
 					for feature in younger[:-1]:
 						explanation += feature + ", "
-					explanation += "and " + younger[-1] + " "
+					explanation = explanation[:-2]
+					explanation += " and " + younger[-1] + " "
 				else:
 					explanation += younger[-1] + " "
 				
@@ -146,13 +147,14 @@ class AgeClassify:
 					explanation += "makes you look younger than your predicted age "
 
 				if len(older) > 0:
-					explanation += "and your "
+					explanation += "and that your "
 
 			if len(older) > 0:
 				if len(older) > 1:
 					for feature in older[:-1]:
 						explanation += feature + ", "
-					explanation += "and " + older[-1] + " "
+					explanation = explanation[:-2]
+					explanation += " and " + older[-1] + " "
 
 				else:
 					explanation += older[-1] + " "
