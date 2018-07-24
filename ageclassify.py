@@ -3,13 +3,13 @@ import cv2
 import dlib
 import sys
 import numpy as np
-import argparse
-from contextlib import contextmanager
-from wide_resnet import WideResNet
-from keras.utils.data_utils import get_file
-from scipy.misc import imresize
-import skimage
-from skimage.color import label2rgb
+# import argparse
+# from contextlib import contextmanager
+# from wide_resnet import WideResNet
+# from keras.utils.data_utils import get_file
+# from scipy.misc import imresize
+# import skimage
+# from skimage.color import label2rgb
 from skimage.segmentation import mark_boundaries
 import lime
 from PIL import Image
@@ -25,7 +25,7 @@ def main():
 	
 	if 1 == 0:
 		classifier = AgeClassify()
-		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg"
+		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test3.jpg"
 		ans = classifier.process(filename, perturbation=50)
 		maskLst=ans[0]
 
@@ -33,9 +33,9 @@ def main():
 		ans2 = classifier.process_facial_feature(filename, maskLst)
 		print(ans2)
 
-	if 1 == 1:
+	if 1 == 0:
 		classifier = AgeClassify()
-		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test2.jpg"
+		filename = "/Users/HillOfFlame/NLP_InfoSys/XAIpoint/age-gender-estimation/SmallData/wiki_crop/00/test7.jpg"
 		ans = classifier.process(filename, perturbation=50)
 		print(ans)
 		pickle.dump(ans, open("pickled/ans3.p", "wb"))
@@ -51,16 +51,18 @@ def main():
 
 		pic = classifier.draw_bounding_box(img, (30,30), (50,50))
 
-		print(classifier.laymans_explanation(ans[3], ans[2]))
+		facialFeatures = classifier.process_facial_feature(filename, maskLst, ans[2])
 
-		pickle.dump((ans[3], ans[2]), open("pickled/input2.p", "wb"))
+		print(classifier.laymans_explanation(facialFeatures, ans[2]))
+
+		pickle.dump((facialFeatures, ans[2]), open("pickled/input7.p", "wb"))
 
 
 		# print("SHAPEC:", np.asarray(maskLst).shape)
 
 		# classifier.export_image_list(maskLst)
-	if 1 == 0:
-		input = pickle.load(open("pickled/input1.p", "rb"))
+	if 1 == 1:
+		input = pickle.load(open("pickled/input10.p", "rb"))
 
 		classifier = AgeClassify()
 
@@ -76,14 +78,14 @@ class AgeClassify:
 	## import libraries and neural net weights
 		pretrained_model = "https://github.com/yu4u/age-gender-estimation/releases/download/v0.5/weights.18-4.06.hdf5"
 		modhash = '89f56a39a78454e96379348bddd78c0d'
-		weight_file = get_file("weights.18-4.06.hdf5", pretrained_model, cache_subdir="pretrained_models", file_hash=modhash)
+		# weight_file = get_file("weights.18-4.06.hdf5", pretrained_model, cache_subdir="pretrained_models", file_hash=modhash)
 
-		img_size = 64
-		depth=16
-		width=8
-		margin=0.4
-		self.model = WideResNet(img_size, depth=depth, k=width)()
-		self.model.load_weights(weight_file)
+		# img_size = 64
+		# depth=16
+		# width=8
+		# margin=0.4
+		# self.model = WideResNet(img_size, depth=depth, k=width)()
+		# self.model.load_weights(weight_file)
 
 
 	def laymans_explanation(self, facialDict, predictedAge):
@@ -91,10 +93,13 @@ class AgeClassify:
 		younger = []
 		older = []
 		for feature in facialDict.keys():
-			if facialDict[feature] - 2 > predictedAge:
+			if facialDict[feature] - 1 > predictedAge:
 				older.append(feature)
-			elif facialDict[feature] + 2 < predictedAge:
+			elif facialDict[feature] + 1 < predictedAge:
 				younger.append(feature)
+
+		OYL = len(younger)
+		OOL = len(older)
 
 		# Removing redundancies
 		if "right cheek" in younger and "left cheek" in younger:
@@ -123,31 +128,43 @@ class AgeClassify:
 		print("FACIAL DICT:", facialDict)
 		print("YOUNGER:", younger)
 		# Generate the explanation
-		explanation = "We have found that your "
 		
-		if len(younger) > 0:
-			if len(younger) > 1:
-				for feature in younger[:-1]:
-					explanation += feature + ", "
-				explanation += "and " + younger[-1] + " "
-			else:
-				explanation += younger[-1] + " "
-			explanation += "make you look younger than your predicted age "
+		if len(younger) > 0 or len(older) > 0:
+			explanation = "We have found that your "
+			
+			if len(younger) > 0:
+				if len(younger) > 1:
+					for feature in younger[:-1]:
+						explanation += feature + ", "
+					explanation += "and " + younger[-1] + " "
+				else:
+					explanation += younger[-1] + " "
+				
+				if OYL > 1:
+					explanation += "make you look younger than your predicted age "
+				else: 
+					explanation += "makes you look younger than your predicted age "
+
+				if len(older) > 0:
+					explanation += "and your "
 
 			if len(older) > 0:
-				explanation += "and your "
+				if len(older) > 1:
+					for feature in older[:-1]:
+						explanation += feature + ", "
+					explanation += "and " + older[-1] + " "
 
-		if len(older) > 0:
-			if len(older) > 1:
-				for feature in older[:-1]:
-					explanation += feature + ", "
-				explanation += "and " + older[-1] + " "
+				else:
+					explanation += older[-1] + " "
+				if OOL > 1:
+					explanation += "make you look older than your predicted age "
+				else:
+					explanation += "makes you look older than your predicted age "
 
-			else:
-				explanation += older[-1] + " "
-			explanation += "make you look older than your predicted age "
-
-		explanation = explanation[:-1] + "."
+			explanation = explanation[:-1] + "."
+		
+		else:
+			explanation = "No features stick out to cause irregularities in your age prediction."
 
 		return explanation
 
