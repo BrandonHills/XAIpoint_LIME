@@ -46,6 +46,9 @@ def main():
 		ans3 = classifier.get_overlay(filename, maskLst, 22)
 		pickle.dump(ans3, open("pickled/ans5.p", "wb"))
 
+		pic = classifier.draw_bounding_box(ans[1], (30,30), (50,50))
+
+
 		# print("SHAPEC:", np.asarray(maskLst).shape)
 
 		# classifier.export_image_list(maskLst)
@@ -77,6 +80,7 @@ class AgeClassify:
 	# 		elif facialDict[feature] > predictedAge:
 	# 			younger.append(feature)
 
+	# 	# Generate the explanation
 	# 	explanation = "We have found that your "
 		
 	# 	if len(younger) > 0:
@@ -84,7 +88,13 @@ class AgeClassify:
 	# 			for feature in younger[:-1]:
 	# 				explanation += feature + ", "
 	# 			explanation += "and your " + younger[-1]
-	# 		else:
+	# 		explanation += "make you look younger "
+			
+	# 		if len(older) > 0:
+	# 			explanation += "and your "
+
+	# 	if len(older)
+
 
 
 
@@ -195,9 +205,9 @@ class AgeClassify:
 	def draw_bounding_box(self, img, c1, c2, colour=(246,207,109), thicc=2): 
 
 		# Scale the coords
-		newC1 = ((int(c1[0] / 64) * img.shape[0]), int(c1[1]/64 * img.shape[1]))
+		newC1 = ((int(c1[0] / 64 * img.shape[0])), int(c1[1]/64 * img.shape[1]))
 
-		newC2 = ((int(c2[0] / 64) * img.shape[0]), int(c2[1]/64 * img.shape[1]))
+		newC2 = ((int(c2[0] / 64 * img.shape[0])), int(c2[1]/64 * img.shape[1]))
 
 		return cv2.rectangle(img, newC1, newC2, colour, thicc)
 
